@@ -1,8 +1,3 @@
-"""
-Consumer Service — Kafka → PostgreSQL writer.
-Reads posture events from Kafka and persists them to the `posture_events` table.
-"""
-
 import json
 import logging
 import os
@@ -18,7 +13,7 @@ KAFKA_TOPIC   = os.getenv("KAFKA_TOPIC", "posture-events")
 KAFKA_GROUP   = os.getenv("KAFKA_GROUP", "posture-consumer-group")
 PG_DSN        = os.getenv(
     "PG_DSN",
-    "host=postgres port=5432 dbname=posture user=posture password=posture"
+    "host=postgres port=5432 dbname=posture user=postgres password=postgres"
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [CONSUMER] %(message)s")

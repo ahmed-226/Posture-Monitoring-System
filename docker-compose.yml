@@ -1,0 +1,109 @@
+services:
+
+  # ─── Kafka (using your existing apache/kafka image) ───────────────────────
+  kafka:
+    image: apache/kafka:latest
+    container_name: posture-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # KRaft mode (no Zookeeper needed)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: "posture-monitor-cluster-01"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # ─── Kafka topic initializer ──────────────────────────────────────────────
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: posture-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic posture-events --partitions 1 --replication-factor 1"]
+    restart: "no"
+
+  # ─── PostgreSQL (using your existing postgres image) ─────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: posture-postgres
+    environment:
+      POSTGRES_DB:       posture
+      POSTGRES_USER:     posture
+      POSTGRES_PASSWORD: posture
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"   # mapped to 5433 on host to avoid conflict with existing pg
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U posture -d posture"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── CV Service (MediaPipe CPU inference) ─────────────────────────────────
+  cv-service:
+    build:
+      context: ./cv-service
+      dockerfile: Dockerfile
+    container_name: posture-cv
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER:      kafka:9092
+      KAFKA_TOPIC:       posture-events
+      WEBCAM_INDEX:      "0"
+      FRAME_SKIP:        "2"
+      NECK_ANGLE_THRESH: "155"
+      USER_ID:           USER-001
+
+  # ─── Consumer Service ─────────────────────────────────────────────────────
+  consumer-service:
+    build:
+      context: ./consumer-service
+      dockerfile: Dockerfile
+    container_name: posture-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER: kafka:9092
+      KAFKA_TOPIC:  posture-events
+      KAFKA_GROUP:  posture-consumer-group
+      PG_DSN:       "host=postgres port=5432 dbname=posture user=posture password=posture"
+    restart: unless-stopped
+
+  # ─── Streamlit UI ─────────────────────────────────────────────────────────
+  ui-service:
+    build:
+      context: ./ui-service
+      dockerfile: Dockerfile
+    container_name: posture-ui
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PG_DSN: "host=postgres port=5432 dbname=posture user=posture password=posture"
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  postgres_data:

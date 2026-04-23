@@ -1,8 +1,3 @@
-"""
-UI Service — Streamlit Real-Time Posture Dashboard.
-Polls PostgreSQL every second and renders live charts and KPI metrics.
-"""
-
 import os
 import time
 
@@ -15,14 +10,14 @@ import streamlit as st
 # ─── Config ──────────────────────────────────────────────────────────────────
 PG_DSN = os.getenv(
     "PG_DSN",
-    "host=postgres port=5432 dbname=posture user=posture password=posture"
+    "host=postgres port=5432 dbname=posture user=postgres password=postgres"
 )
-REFRESH_INTERVAL = 1  # seconds
+REFRESH_INTERVAL = 1 
 
 # ─── Page setup ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Ergonomic Posture Monitor",
-    page_icon="🧘",
+    page_icon="AM",
     layout="wide",
 )
 
@@ -164,8 +159,7 @@ def format_duration(seconds: float) -> str:
 conn = get_conn()
 
 # Header
-st.markdown('<div class="header-brand">🧘 Ergonomic Posture Monitor</div>', unsafe_allow_html=True)
-st.markdown('<div class="header-sub">Real-time posture analysis pipeline · CV → Kafka → PostgreSQL</div>', unsafe_allow_html=True)
+st.markdown('<div class="header-brand">Ergonomic Posture Monitor</div>', unsafe_allow_html=True)
 st.markdown("---")
 
 placeholder = st.empty()
@@ -175,7 +169,6 @@ while True:
     df      = fetch_latest(conn, limit=300)
 
     with placeholder.container():
-        # ── KPI Row ──────────────────────────────────────────────────────────
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.markdown(f"""
@@ -199,7 +192,6 @@ while True:
                 <div class="metric-sub">{100 - summary['good_pct']:.1f}% of tracked time</div>
             </div>""", unsafe_allow_html=True)
         with c4:
-            # Last known status
             if not df.empty:
                 last = df.iloc[-1]
                 cur_posture  = last["posture_state"]
@@ -221,7 +213,7 @@ while True:
 
             # ── Neck Angle Time-Series ────────────────────────────────────────
             with col_left:
-                st.markdown('<div class="section-title">📐 Neck Angle Over Time</div>', unsafe_allow_html=True)
+                st.markdown('<div class="section-title">Neck Angle Over Time</div>', unsafe_allow_html=True)
                 fig_angle = go.Figure()
                 fig_angle.add_hline(
                     y=155, line_dash="dash", line_color="#4ade80",
@@ -296,7 +288,7 @@ while True:
             st.plotly_chart(fig_act, use_container_width=True)
 
         else:
-            st.info("⏳ Waiting for data from the CV pipeline… Make sure the cv-service is running.")
+            st.info("Waiting for data from the CV pipeline… Make sure the cv-service is running.")
 
     time.sleep(REFRESH_INTERVAL)
     st.rerun()

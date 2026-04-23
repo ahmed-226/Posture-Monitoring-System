@@ -1,2 +1,8 @@
 *.md 
 !README.md
+
+venv/
+.ruff_cache/
+
+*.sh
+!run.sh
